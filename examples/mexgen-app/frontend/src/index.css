@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	body {
+		@apply min-h-screen;
+	}
+
+	::selection {
+		@apply bg-accent/30;
+	}
+
+	/* Scrollbar */
+	::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	::-webkit-scrollbar-track {
+		@apply bg-transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		@apply bg-zinc-700 rounded-full;
+	}
+}

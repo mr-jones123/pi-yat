@@ -1,0 +1,28 @@
+[project]
+name = "mexgen-api"
+version = "1.0.0"
+description = "MExGen – Production API for Multi-Level Explanations of Generative Language Models"
+requires-python = ">=3.11,<3.13"
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "websockets>=13.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "icx360>=0.1.0",
+    "torch>=2.0",
+    "transformers>=4.40",
+    "spacy>=3.6",
+    "sentence-transformers",
+    "bert-score",
+    "evaluate",
+    "accelerate",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "pytest", "httpx"]
+
+[tool.ruff]
+line-length = 120

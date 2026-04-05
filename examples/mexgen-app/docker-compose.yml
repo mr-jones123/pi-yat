@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MEXGEN_DEVICE=auto
+      - MEXGEN_SUMMARIZATION_MODEL=sshleifer/distilbart-xsum-12-6
+      - MEXGEN_QA_MODEL=google/flan-t5-base
+      - MEXGEN_SPACY_MODEL=en_core_web_sm
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    # Uncomment for GPU support:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  hf-cache:

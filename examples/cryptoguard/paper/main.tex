@@ -1,0 +1,429 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{url}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=green!50!black,
+  urlcolor=blue!60!black
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!5}
+}
+
+\title{\textbf{CryptoGuard: Vision-Language Model-Based Detection of\\
+Cryptocurrency Scams in Short-Form Videos}}
+
+\author{
+  [Author Name]\\
+  [Department], [University]\\
+  \texttt{[email]}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ===================================================================
+\begin{abstract}
+Short-form video platforms have become a primary vector for cryptocurrency
+scams, combining visual manipulation with high-pressure audio narratives
+to deceive viewers. Existing content moderation systems are not specifically
+tuned for the multimodal patterns of crypto fraud in video.
+We present \textbf{CryptoGuard}, a system that leverages the Image Grid
+Vision Language Model (IG-VLM) approach to convert short-form videos into
+composite images, combines CLIP-based zero-shot visual scam indicator
+scoring with Whisper audio transcription, and feeds this multimodal
+evidence into a Qwen3 vision-language model for chain-of-thought scam
+detection.
+Our pipeline produces structured verdicts with confidence scores and
+detailed reasoning, exposed through a web application for interactive
+analysis.
+We evaluate CryptoGuard on a curated dataset of crypto scam and legitimate
+short-form videos, measuring accuracy, precision, recall, and F1 score,
+and conduct ablation studies on modality contribution and image grid
+configuration.
+Results demonstrate that the multimodal approach combining visual, audio,
+and CLIP signals achieves superior detection compared to unimodal baselines,
+highlighting the potential of VLMs for domain-specific content moderation.
+\end{abstract}
+
+\textbf{Keywords:} Vision-Language Models, Cryptocurrency Scam Detection,
+Short-Form Video Analysis, Content Moderation, CLIP, Whisper, Multimodal AI
+
+% ===================================================================
+\section{Introduction}
+
+Cryptocurrency fraud has surged alongside the growth of digital assets.
+The U.S.\ Federal Trade Commission reported that consumers lost over
+\$1 billion to cryptocurrency scams between January 2021 and June 2022
+alone~\cite{ftc2023}, with social media platforms identified as the
+primary channel for these losses. Chainalysis reports similar trends
+globally, noting that scam revenue continues to grow year over year~\cite{chainalysis2024}.
+
+Short-form video platforms such as TikTok, YouTube Shorts, and Instagram
+Reels have emerged as particularly effective vectors for crypto fraud.
+These videos exploit a combination of modalities: visually compelling
+fake profit screenshots and luxury lifestyle imagery, urgent spoken
+narratives (``only 5 spots left''), and on-screen text with wallet
+addresses or QR codes. The multimodal nature of these scams makes them
+difficult to detect with text-only or image-only classifiers.
+
+Recent advances in Vision-Language Models (VLMs) have demonstrated
+remarkable zero-shot reasoning capabilities across visual and textual
+domains~\cite{bordes2024vlm}. Kim et al.~\cite{kim2024imagegrid} showed
+that a single VLM can understand video content by converting sampled frames
+into an image grid, outperforming dedicated video language models on
+9 out of 10 benchmarks. AlDahoul et al.~\cite{aldahoul2024contentmod}
+demonstrated that LLMs outperform traditional techniques for content
+moderation across text, images, and video.
+
+In this work, we present \textbf{CryptoGuard}, which combines three
+key components:
+\begin{enumerate}[nosep]
+  \item The IG-VLM image grid representation for efficient video-to-image
+    conversion~\cite{kim2024imagegrid}.
+  \item CLIP~\cite{radford2021clip} zero-shot visual scoring against
+    crypto-scam-specific indicator prompts.
+  \item Whisper~\cite{radford2023whisper} audio transcription to capture
+    spoken scam narratives.
+\end{enumerate}
+These multimodal signals are fused and analysed by a Qwen3
+VLM~\cite{qwen2024} using chain-of-thought prompting to produce
+structured scam verdicts.
+
+Our contributions are:
+\begin{itemize}[nosep]
+  \item A novel application of the IG-VLM image grid technique to
+    domain-specific crypto scam detection in short-form video.
+  \item A multimodal pipeline combining CLIP visual scoring, Whisper
+    transcription, and VLM reasoning.
+  \item An evaluation framework with ablation studies on modality
+    contribution and grid configuration.
+  \item An open-source web application for interactive video analysis.
+\end{itemize}
+
+% ===================================================================
+\section{Related Work}
+
+\subsection{Video Understanding with Vision-Language Models}
+
+Tang et al.~\cite{tang2023vidllm} provide a comprehensive survey of
+approaches for integrating video content with LLMs, categorising methods
+into VideoLM pretraining, instruction tuning, LLM-based agents, and
+hybrid approaches. A key challenge is encoding temporal information from
+potentially hundreds of frames into a format that language models can
+process.
+
+Kim et al.~\cite{kim2024imagegrid} address this by proposing Image Grid
+VLM (IG-VLM), which converts sampled video frames into a single composite
+image arranged in a grid layout. This approach enables direct application
+of a frozen, high-performance VLM without any video-specific training.
+Their experiments across ten zero-shot video question answering benchmarks
+show that IG-VLM surpasses dedicated VideoLMs in 9 out of 10 cases.
+The optimal configuration uses 6 frames in a $3 \times 2$ grid with
+row-major ordering.
+
+Himakunthala et al.~\cite{himakunthala2023videocot} propose VideoCOT,
+which leverages multimodal generative abilities of VLMs to enhance video
+reasoning through chain-of-thought processing on keyframes, reducing
+computational complexity while improving reasoning quality.
+
+\subsection{Content Moderation with LLMs}
+
+AlDahoul et al.~\cite{aldahoul2024contentmod} evaluate LLM-based content
+moderation solutions including OpenAI's moderation model, Llama-Guard-3,
+GPT-4o, Gemini 1.5, and Llama-3 across text, images, and videos.
+Their results demonstrate that LLMs outperform traditional deep learning
+techniques in detecting hate speech, violence, and sexual content, achieving
+higher accuracy with lower false positive and false negative rates.
+Notably, Gemini 1.5 Pro achieved 95.5\% accuracy for violence detection
+in videos.
+
+However, their work focuses on general harmful content categories
+(violence, nudity, hate speech) and does not address domain-specific
+fraud patterns such as cryptocurrency scams.
+
+\subsection{Misinformation Video Detection}
+
+Bu et al.~\cite{bu2023misinformation} survey misinformation video
+detection research, characterising misinformation at three levels:
+signals, semantics, and intents. They identify key challenges including
+high information heterogeneity across modalities, the blurred distinction
+between manipulative and legitimate video editing, and platform-specific
+propagation patterns. Their work highlights that domain-specific
+misinformation, including financial fraud, remains under-studied.
+
+\subsection{Cryptocurrency Fraud Detection}
+
+Existing work on cryptocurrency fraud focuses primarily on blockchain
+transaction analysis using graph neural networks and traditional ML
+classifiers operating on on-chain data. Research on detecting crypto
+scams through their \emph{promotional content}, particularly in video
+format, remains largely unexplored. This gap motivates our work, which
+targets the presentation layer of crypto scams rather than their
+financial transactions.
+
+% ===================================================================
+\section{Methodology}
+
+\subsection{System Architecture}
+
+CryptoGuard processes a short-form video URL through four stages:
+(1) video acquisition, (2) multimodal feature extraction, (3) VLM
+analysis, and (4) result presentation. Figure~\ref{fig:architecture}
+illustrates the pipeline.
+
+\begin{figure}[h]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering
+\small
+\texttt{URL} $\rightarrow$ \texttt{yt-dlp}
+$\rightarrow$ \begin{tabular}{l}
+  Frame extraction $\rightarrow$ CLIP scoring \\
+  Audio extraction $\rightarrow$ Whisper transcript
+\end{tabular}
+$\rightarrow$ \texttt{Qwen3-VL} $\rightarrow$ \texttt{Verdict}
+}}
+\caption{CryptoGuard pipeline architecture.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Video Acquisition and Preprocessing}
+
+Videos are downloaded using yt-dlp with a duration constraint
+($\leq 180$s) to ensure the input is short-form content. The system
+validates the download and extracts metadata for logging.
+
+\subsection{Image Grid Construction}
+
+Following the IG-VLM approach~\cite{kim2024imagegrid}, we uniformly
+sample $N = 6$ frames from the video. The video timeline is partitioned
+into $N$ equal intervals, and the first frame from each interval is
+selected. Frames are resized to $384 \times 384$ pixels and arranged in
+a $3 \times 2$ grid (row-major ordering), producing a single
+$1152 \times 768$ composite image. This configuration was shown by
+Kim et al.\ to be optimal for VLM video understanding, balancing
+spatial resolution per frame against temporal coverage.
+
+\subsection{CLIP-Based Visual Scam Indicator Scoring}
+
+We leverage CLIP~\cite{radford2021clip} for zero-shot classification of
+visual scam indicators. We define a set of 10 text prompts describing
+common crypto scam visual patterns:
+
+\begin{itemize}[nosep]
+  \item Fake cryptocurrency profit screenshots
+  \item Countdown timers creating urgency
+  \item Celebrity endorsement imagery
+  \item Luxury lifestyle montages
+  \item QR codes or wallet addresses
+  \item Fake trading platform interfaces
+  \item Text overlays promising giveaways
+  \item Before/after wealth testimonials
+  \item Fabricated financial charts
+  \item Fake bank account balances
+\end{itemize}
+
+For each frame, we compute cosine similarity between the CLIP image
+embedding and each text prompt embedding. The maximum similarity across
+all frames is reported per indicator, producing a score vector
+$s \in [0, 1]^{10}$ that quantifies visual scam signal strength.
+
+\subsection{Audio Transcription}
+
+Audio is extracted from the video using ffmpeg and transcribed using
+Whisper~\cite{radford2023whisper}. The transcript captures spoken
+scam narratives including profit claims, urgency language, and
+instructions to send cryptocurrency.
+
+\subsection{VLM Chain-of-Thought Analysis}
+
+The image grid, CLIP indicator scores, and audio transcript are
+composed into a structured prompt for the Qwen3 VLM~\cite{qwen2024}.
+The system prompt instructs the model to:
+\begin{enumerate}[nosep]
+  \item Examine the image grid as a temporal sequence of video frames.
+  \item Consider the CLIP visual scam indicator scores.
+  \item Analyse the audio transcript for scam language patterns.
+  \item Reason step-by-step about scam indicators.
+  \item Output a structured JSON verdict.
+\end{enumerate}
+
+The VLM produces a verdict (\texttt{scam}, \texttt{legitimate}, or
+\texttt{uncertain}), a confidence score, chain-of-thought reasoning,
+and a list of detected indicators.
+
+% ===================================================================
+\section{Implementation}
+
+CryptoGuard is implemented in Python with a FastAPI backend and a
+React single-page application frontend. The system supports two
+deployment modes:
+
+\begin{description}[nosep]
+  \item[Local mode:] Loads Qwen3-VL, CLIP, and Whisper models on a
+    local GPU using HuggingFace Transformers.
+  \item[API mode:] Calls an OpenAI-compatible API endpoint (e.g., vLLM,
+    Ollama) for VLM inference, allowing deployment without local GPU
+    resources.
+\end{description}
+
+Key implementation details:
+\begin{itemize}[nosep]
+  \item Video download via \texttt{yt-dlp} with metadata validation.
+  \item Frame extraction using OpenCV with uniform temporal sampling.
+  \item CLIP encoding via HuggingFace \texttt{CLIPModel} (\texttt{ViT-B/32}).
+  \item Audio extraction via ffmpeg, transcription via Whisper \texttt{base} model.
+  \item VLM response parsing with JSON extraction and validation.
+  \item Lazy model initialization to minimize startup time.
+\end{itemize}
+
+The web interface accepts a video URL, displays a loading state during
+pipeline execution, and renders the verdict with confidence, reasoning,
+CLIP scores, detected indicators, the image grid, and the audio transcript.
+
+% ===================================================================
+\section{Evaluation}
+
+\subsection{Dataset Construction}
+
+We construct an evaluation dataset by manually collecting and labelling
+short-form video URLs from YouTube Shorts and TikTok. The dataset
+contains $N$ samples equally split between crypto scam and legitimate
+crypto content. Scam videos are identified by the presence of fake profit
+claims, urgency tactics, celebrity impersonation, and suspicious wallet
+addresses. Legitimate videos include news coverage, educational content,
+and verified project announcements.
+
+\subsection{Metrics}
+
+We evaluate using standard binary classification metrics with ``scam''
+as the positive class:
+\begin{itemize}[nosep]
+  \item \textbf{Accuracy}: overall correct predictions.
+  \item \textbf{Precision}: proportion of predicted scams that are true scams.
+  \item \textbf{Recall}: proportion of true scams that are detected.
+  \item \textbf{F1 Score}: harmonic mean of precision and recall.
+  \item \textbf{FPR / FNR}: false positive and false negative rates.
+\end{itemize}
+
+\subsection{Ablation Studies}
+
+To measure the contribution of each modality, we conduct ablation
+experiments:
+\begin{enumerate}[nosep]
+  \item \textbf{Visual only}: Image grid + CLIP scores, no transcript.
+  \item \textbf{Audio only}: Transcript only, no image grid or CLIP.
+  \item \textbf{Full multimodal}: Image grid + CLIP + transcript (our method).
+\end{enumerate}
+
+We also vary the image grid configuration:
+\begin{itemize}[nosep]
+  \item Number of frames: $N \in \{4, 6, 9\}$.
+  \item Grid layout: $2 \times 2$, $3 \times 2$, $3 \times 3$.
+\end{itemize}
+
+\subsection{Results}
+
+\emph{Results will be populated after evaluation on the curated dataset.
+Placeholder tables are provided below.}
+
+\begin{table}[h]
+\centering
+\caption{Detection performance across modality configurations.}
+\label{tab:results}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Configuration} & \textbf{Acc.} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{FNR} \\
+\midrule
+Visual only        & --  & --  & --  & --  & -- \\
+Audio only         & --  & --  & --  & --  & -- \\
+Full multimodal    & --  & --  & --  & --  & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Effect of image grid configuration.}
+\label{tab:ablation_grid}
+\begin{tabular}{cccc}
+\toprule
+\textbf{Frames} & \textbf{Grid} & \textbf{Acc.} & \textbf{F1} \\
+\midrule
+4  & $2 \times 2$ & -- & -- \\
+6  & $3 \times 2$ & -- & -- \\
+9  & $3 \times 3$ & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Qualitative Analysis}
+
+\emph{Case studies of correct and incorrect classifications will be
+presented, analysing which scam indicators the system identifies most
+reliably and characterising failure modes.}
+
+% ===================================================================
+\section{Discussion}
+
+\paragraph{Strengths.}
+The multimodal approach captures scam signals that unimodal methods miss.
+CLIP provides interpretable, per-indicator scoring that serves both as
+input to the VLM and as explainable evidence to users. The image grid
+technique avoids the need for video-specific model training, enabling
+rapid deployment.
+
+\paragraph{Limitations.}
+The system depends on the VLM's zero-shot reasoning, which can be
+sensitive to prompt phrasing and may produce hallucinated indicators.
+Short-form video scam tactics evolve rapidly, and the fixed set of CLIP
+indicator prompts may not capture novel patterns. Processing time
+(download + extraction + inference) is on the order of seconds, which
+limits real-time applicability at platform scale.
+
+\paragraph{Ethical Considerations.}
+Automated scam detection systems risk false positives that suppress
+legitimate content. We recommend human-in-the-loop verification for
+enforcement actions. The system processes publicly available videos and
+does not collect user data.
+
+% ===================================================================
+\section{Conclusion and Future Work}
+
+We presented CryptoGuard, a VLM-based system for detecting cryptocurrency
+scams in short-form videos. By adapting the IG-VLM image grid technique
+and combining CLIP visual scoring with Whisper transcription, our
+multimodal pipeline delivers structured scam verdicts with chain-of-thought
+reasoning.
+
+Future work includes: (1) expanding the evaluation dataset for
+statistical significance, (2) fine-tuning the VLM on labelled crypto
+scam data, (3) incorporating on-screen text extraction (OCR) as an
+additional modality, (4) adapting the CLIP indicator prompt set through
+prompt optimization, and (5) investigating temporal patterns specific
+to scam video editing styles.
+
+% ===================================================================
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

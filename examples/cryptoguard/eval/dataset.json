@@ -1,0 +1,18 @@
+{
+	"_comment": "CryptoGuard evaluation dataset. Add entries with url + ground_truth label.",
+	"version": "0.1.0",
+	"samples": [
+		{
+			"id": "example_scam_001",
+			"url": "https://example.com/scam-video-1",
+			"ground_truth": "scam",
+			"notes": "Fake profit screenshot, urgency language"
+		},
+		{
+			"id": "example_legit_001",
+			"url": "https://example.com/legit-video-1",
+			"ground_truth": "legitimate",
+			"notes": "Educational crypto explainer"
+		}
+	]
+}
